@@ -248,6 +248,14 @@
         login_host: "{{ guacamole_postgresql_db['host'] }}"
         login_password: "{{ guacamole_postgresql_db['password'] }}"
         login_user: "{{ guacamole_postgresql_db['username'] }}"
+      register: _guacamole_db_populated
+
+    - name: config | Marking DB As Populated
+      file:
+        path: /etc/guacamole/.db_populated
+        state: touch
+      when: _guacamole_db_populated is changed
+      become: true
 
     - name: config | Checking If DB Has Been Populated
       stat:
@@ -255,8 +263,7 @@
       register: _guacamole_db_populated_check
 
     - name: config | Popluating DB
-      shell: psql -U "{{ guacamole_postgresql_db['username'] }}" -W "{{ guacamole_postgresql_db['password'] }}" -h "{{ guacamole_postgresql_db['host'] }}" -d "{{ guacamole_postgresql_db['name'] }}" < "{{ guacamole_src_dir + '/' + 'guacamole-auth-jdbc-' + guacamole_version + '/postgresql/schema/' + item }}"
-      register: _guacamole_db_populated
+      shell: PGPASSWORD="{{ guacamole_postgresql_db['password'] }}" psql -U "{{ guacamole_postgresql_db['username'] }}" -h "{{ guacamole_postgresql_db['host'] }}" -d "{{ guacamole_postgresql_db['name'] }}" < "{{ guacamole_src_dir + '/' + 'guacamole-auth-jdbc-' + guacamole_version + '/postgresql/schema/' + item }}"
       notify:
         - "restart {{ guacamole_tomcat_service }}"
         - kill guacd
@@ -290,11 +297,6 @@
         obj: ALL_IN_SCHEMA
         privs: all
 
-    - name: config | Marking DB As Populated # noqa 503
-      file:
-        path: /etc/guacamole/.db_populated
-        state: touch
-      become: true
   when: guacamole_postgresql_auth and guacamole_prosgresql_external
 
 - name: config | Creating Tomcat symlink For guacamole.properties
