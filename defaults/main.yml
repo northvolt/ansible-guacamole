@@ -28,8 +28,10 @@ guacamole_mysql_connector_dl_url: https://dev.mysql.com/get/Downloads/Connector-
 
 guacamole_mysql_connector_version: 8.0.13
 
-# Defines if PostgreSQL DB should be used for authentication
+  # Defines if PostgreSQL DB should be used for authentication
 guacamole_postgresql_auth: false
+
+guacamole_prosgresql_external: false
 
 guacamole_postgresql_connector_package: "{{ guacamole_postgresql_connector_dl_url + 'postgresql-' + guacamole_postgresql_connector_version + '.jar' }}"
 

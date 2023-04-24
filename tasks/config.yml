@@ -126,15 +126,6 @@
   become: true
   when: guacamole_mysql_auth
 
-- name: config | Creating Guacamole DB
-  postgresql_db:
-    name: "{{ guacamole_postgresql_db['name'] }}"
-    state: present
-    login_host: "{{ guacamole_postgresql_db['host'] }}"
-  become: true
-  become_user: postgres
-  when: guacamole_postgresql_auth
-
 - name: config | Creating Guacamole DB User
   mysql_user:
     name: "{{ guacamole_mysql_db['username'] }}"
@@ -145,22 +136,6 @@
     state: present
   become: true
   when: guacamole_mysql_auth
-
-- name: config | Creating Guacamole DB User
-  postgresql_user:
-    db: "{{ guacamole_postgresql_db['name'] }}"
-    name: "{{ guacamole_postgresql_db['username'] }}"
-    password: "{{ guacamole_postgresql_db['password'] }}"
-    state: present
-  become: true
-  become_user: postgres
-  when: guacamole_postgresql_auth
-
-- name: config | Checking If DB Has Been Populated
-  stat:
-    path: /etc/guacamole/.db_populated
-  register: _guacamole_db_populated_check
-  when: guacamole_mysql_auth or guacamole_postgresql_auth
 
 - name: config | Popluating DB
   mysql_db:
@@ -182,43 +157,11 @@
     guacamole_mysql_auth and
     not _guacamole_db_populated_check['stat']['exists']
 
-- name: config | Popluating DB
-  shell: psql "{{ guacamole_postgresql_db['name'] }}" < "{{ guacamole_src_dir + '/' + 'guacamole-auth-jdbc-' + guacamole_version + '/postgresql/schema/' + item }}"
-  become: true
-  become_user: postgres
-  register: _guacamole_db_populated
-  notify:
-    - "restart {{ guacamole_tomcat_service }}"
-    - kill guacd
-    - restart guacd
-  with_items:
-    - 001-create-schema.sql
-    - 002-create-admin-user.sql
-  when: >
-    guacamole_postgresql_auth and
-    not _guacamole_db_populated_check['stat']['exists']
-
-- name: config | Setting DB permissions
-  postgresql_privs:
-    database: "{{ guacamole_postgresql_db['name'] }}"
-    schema: public
-    role: "{{ guacamole_postgresql_db['username'] }}"
-    type: table
-    obj: ALL_IN_SCHEMA
-    privs: SELECT,INSERT,UPDATE,DELETE
-  become: true
-  become_user: postgres
-
-- name: config | Setting DB permissions
-  postgresql_privs:
-    database: "{{ guacamole_postgresql_db['name'] }}"
-    schema: public
-    role: "{{ guacamole_postgresql_db['username'] }}"
-    type: sequence
-    obj: ALL_IN_SCHEMA
-    privs: all
-  become: true
-  become_user: postgres
+- name: config | Checking If DB Has Been Populated
+  stat:
+    path: /etc/guacamole/.db_populated
+  register: _guacamole_db_populated_check
+  when: guacamole_mysql_auth
 
 - name: config | Marking DB As Populated # noqa 503
   file:
@@ -229,6 +172,130 @@
     (guacamole_mysql_auth or
      guacamole_postgresql_auth) and
     _guacamole_db_populated['changed']
+
+- name: config | Config local postgresql
+  block:
+    - name: config | Creating Guacamole DB
+      postgresql_db:
+        name: "{{ guacamole_postgresql_db['name'] }}"
+        state: present
+      become: true
+      become_user: postgres
+
+    - name: config | Creating Guacamole DB User
+      postgresql_user:
+        db: "{{ guacamole_postgresql_db['name'] }}"
+        name: "{{ guacamole_postgresql_db['username'] }}"
+        password: "{{ guacamole_postgresql_db['password'] }}"
+        state: present
+      become: true
+      become_user: postgres
+
+    - name: config | Checking If DB Has Been Populated
+      stat:
+        path: /etc/guacamole/.db_populated
+      register: _guacamole_db_populated_check
+
+    - name: config | Popluating DB
+      shell: psql "{{ guacamole_postgresql_db['name'] }}" < "{{ guacamole_src_dir + '/' + 'guacamole-auth-jdbc-' + guacamole_version + '/postgresql/schema/' + item }}"
+      become: true
+      become_user: postgres
+      register: _guacamole_db_populated
+      notify:
+        - "restart {{ guacamole_tomcat_service }}"
+        - kill guacd
+        - restart guacd
+      with_items:
+        - 001-create-schema.sql
+        - 002-create-admin-user.sql
+      when: not _guacamole_db_populated_check['stat']['exists']
+
+    - name: config | Setting DB permissions
+      postgresql_privs:
+        database: "{{ guacamole_postgresql_db['name'] }}"
+        schema: public
+        role: "{{ guacamole_postgresql_db['username'] }}"
+        type: table
+        obj: ALL_IN_SCHEMA
+        privs: SELECT,INSERT,UPDATE,DELETE
+      become: true
+      become_user: postgres
+
+    - name: config | Setting DB permissions
+      postgresql_privs:
+        database: "{{ guacamole_postgresql_db['name'] }}"
+        schema: public
+        role: "{{ guacamole_postgresql_db['username'] }}"
+        type: sequence
+        obj: ALL_IN_SCHEMA
+        privs: all
+      become: true
+      become_user: postgres
+
+    - name: config | Marking DB As Populated # noqa 503
+      file:
+        path: /etc/guacamole/.db_populated
+        state: touch
+      become: true
+  when: guacamole_postgresql_auth and not guacamole_prosgresql_external
+
+- name: config | Config remote postgresql
+  block:
+    - name: config | Creating Guacamole DB
+      postgresql_db:
+        name: "{{ guacamole_postgresql_db['name'] }}"
+        state: present
+        login_host: "{{ guacamole_postgresql_db['host'] }}"
+
+    - name: config | Creating Guacamole DB User
+      postgresql_user:
+        db: "{{ guacamole_postgresql_db['name'] }}"
+        name: "{{ guacamole_postgresql_db['username'] }}"
+        password: "{{ guacamole_postgresql_db['password'] }}"
+        login_host: "{{ guacamole_postgresql_db['host'] }}"
+        state: present
+
+    - name: config | Checking If DB Has Been Populated
+      stat:
+        path: /etc/guacamole/.db_populated
+      register: _guacamole_db_populated_check
+
+    - name: config | Popluating DB
+      shell: psql -h "{{ guacamole_postgresql_db['host'] }}" -d "{{ guacamole_postgresql_db['name'] }}" < "{{ guacamole_src_dir + '/' + 'guacamole-auth-jdbc-' + guacamole_version + '/postgresql/schema/' + item }}"
+      register: _guacamole_db_populated
+      notify:
+        - "restart {{ guacamole_tomcat_service }}"
+        - kill guacd
+        - restart guacd
+      with_items:
+        - 001-create-schema.sql
+        - 002-create-admin-user.sql
+      when: not _guacamole_db_populated_check['stat']['exists']
+
+    - name: config | Setting DB permissions
+      postgresql_privs:
+        database: "{{ guacamole_postgresql_db['name'] }}"
+        schema: public
+        role: "{{ guacamole_postgresql_db['username'] }}"
+        type: table
+        obj: ALL_IN_SCHEMA
+        privs: SELECT,INSERT,UPDATE,DELETE
+
+    - name: config | Setting DB permissions
+      postgresql_privs:
+        database: "{{ guacamole_postgresql_db['name'] }}"
+        schema: public
+        role: "{{ guacamole_postgresql_db['username'] }}"
+        type: sequence
+        obj: ALL_IN_SCHEMA
+        privs: all
+
+    - name: config | Marking DB As Populated # noqa 503
+      file:
+        path: /etc/guacamole/.db_populated
+        state: touch
+      become: true
+  when: guacamole_postgresql_auth and guacamole_prosgresql_external
 
 - name: config | Creating Tomcat symlink For guacamole.properties
   file:
