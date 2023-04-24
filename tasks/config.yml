@@ -130,6 +130,7 @@
   postgresql_db:
     name: "{{ guacamole_postgresql_db['name'] }}"
     state: present
+    login_host: "{{ guacamole_postgresql_db['host'] }}"
   become: true
   become_user: postgres
   when: guacamole_postgresql_auth
