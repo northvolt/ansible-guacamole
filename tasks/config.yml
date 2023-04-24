@@ -246,14 +246,8 @@
         name: "{{ guacamole_postgresql_db['name'] }}"
         state: present
         login_host: "{{ guacamole_postgresql_db['host'] }}"
-
-    - name: config | Creating Guacamole DB User
-      postgresql_user:
-        db: "{{ guacamole_postgresql_db['name'] }}"
-        name: "{{ guacamole_postgresql_db['username'] }}"
-        password: "{{ guacamole_postgresql_db['password'] }}"
-        login_host: "{{ guacamole_postgresql_db['host'] }}"
-        state: present
+        login_password: "{{ guacamole_postgresql_db['password'] }}"
+        login_user: "{{ guacamole_postgresql_db['username'] }}"
 
     - name: config | Checking If DB Has Been Populated
       stat:
@@ -261,7 +255,7 @@
       register: _guacamole_db_populated_check
 
     - name: config | Popluating DB
-      shell: psql -h "{{ guacamole_postgresql_db['host'] }}" -d "{{ guacamole_postgresql_db['name'] }}" < "{{ guacamole_src_dir + '/' + 'guacamole-auth-jdbc-' + guacamole_version + '/postgresql/schema/' + item }}"
+      shell: psql -U "{{ guacamole_postgresql_db['username'] }}" -W "{{ guacamole_postgresql_db['password'] }}" -h "{{ guacamole_postgresql_db['host'] }}" -d "{{ guacamole_postgresql_db['name'] }}" < "{{ guacamole_src_dir + '/' + 'guacamole-auth-jdbc-' + guacamole_version + '/postgresql/schema/' + item }}"
       register: _guacamole_db_populated
       notify:
         - "restart {{ guacamole_tomcat_service }}"
@@ -275,6 +269,9 @@
     - name: config | Setting DB permissions
       postgresql_privs:
         database: "{{ guacamole_postgresql_db['name'] }}"
+        login_host: "{{ guacamole_postgresql_db['host'] }}"
+        login_password: "{{ guacamole_postgresql_db['password'] }}"
+        login_user: "{{ guacamole_postgresql_db['username'] }}"
         schema: public
         role: "{{ guacamole_postgresql_db['username'] }}"
         type: table
@@ -284,6 +281,9 @@
     - name: config | Setting DB permissions
       postgresql_privs:
         database: "{{ guacamole_postgresql_db['name'] }}"
+        login_host: "{{ guacamole_postgresql_db['host'] }}"
+        login_password: "{{ guacamole_postgresql_db['password'] }}"
+        login_user: "{{ guacamole_postgresql_db['username'] }}"
         schema: public
         role: "{{ guacamole_postgresql_db['username'] }}"
         type: sequence
