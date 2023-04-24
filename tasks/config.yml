@@ -246,15 +246,27 @@
         name: "{{ guacamole_postgresql_db['name'] }}"
         state: present
         login_host: "{{ guacamole_postgresql_db['host'] }}"
-        login_password: "{{ guacamole_postgresql_db['password'] }}"
-        login_user: "{{ guacamole_postgresql_db['username'] }}"
+        login_password: "{{ guacamole_postgresql_db['master_password'] }}"
+        login_user: "{{ guacamole_postgresql_db['master_username'] }}"
       register: _guacamole_db_populated
+      throttle: 1
+
+    - name: config | Creating Guacamole DB User
+      postgresql_user:
+        db: "{{ guacamole_postgresql_db['name'] }}"
+        name: "{{ guacamole_postgresql_db['username'] }}"
+        password: "{{ guacamole_postgresql_db['password'] }}"
+        login_host: "{{ guacamole_postgresql_db['host'] }}"
+        login_password: "{{ guacamole_postgresql_db['master_password'] }}"
+        login_user: "{{ guacamole_postgresql_db['master_username'] }}"
+        state: present
+      when: _guacamole_db_populated is changed
 
     - name: config | Marking DB As Populated
       file:
         path: /etc/guacamole/.db_populated
         state: touch
-      when: _guacamole_db_populated is changed
+      when: not _guacamole_db_populated is changed
       become: true
 
     - name: config | Checking If DB Has Been Populated
